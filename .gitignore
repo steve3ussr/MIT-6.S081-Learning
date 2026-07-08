@@ -22,3 +22,8 @@ xv6.out*
 submissions/
 ph
 barrier
+
+/.private.data/*
+!/.private.data/book-riscv-rev2.pdf
+
+/.idea
