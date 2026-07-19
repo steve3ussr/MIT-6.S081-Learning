@@ -302,7 +302,7 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
-
+  np->tracemask = p->tracemask;
   pid = np->pid;
 
   release(&np->lock);
@@ -653,4 +653,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Return num of processes whose state is not UNUSED
+int stat_nproc(void) {
+  int cnt=0;
+
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state == UNUSED)
+      continue;
+    cnt += 1;
+  }
+  return cnt;
 }
