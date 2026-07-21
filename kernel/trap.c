@@ -8,8 +8,11 @@
 
 struct spinlock tickslock;
 uint ticks;
-
+long loads[3] = {LOAD_FACTOR, LOAD_FACTOR, LOAD_FACTOR};
+extern struct proc proc[NPROC];
+struct proc *p;
 extern char trampoline[], uservec[], userret[];
+int nproc_load;
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -205,9 +208,36 @@ devintr()
     // forwarded by timervec in kernelvec.S.
 
     if(cpuid() == 0){
+        acquire(&tickslock);
+        if (ticks % (TPS*LOAD_SMP) == 0) {
+            // get load proc
+            nproc_load=0;
+            for(p = proc; p < &proc[NPROC]; p++){
+              if((p->state == RUNNABLE) || (p->state == RUNNING) || (p->state == SLEEPING))
+                nproc_load += 1;}
+            
+            // printf("cnt=%d    preload=[%d, %d, %d]    ", nproc_load, loads[0], loads[1], loads[2]);
+            // printf("cnt=%d\n", nproc_load);
+            // calc avg
+            loads[0] += (TPS*LOAD_SMP) * ( LOAD_FACTOR * nproc_load - loads[0]) /  (1*TPM);
+            loads[1] += (TPS*LOAD_SMP) * ( LOAD_FACTOR * nproc_load - loads[1]) /  (5*TPM);
+            loads[2] += (TPS*LOAD_SMP) * ( LOAD_FACTOR * nproc_load - loads[2]) / (15*TPM);
+            
+            long delta = 0;
+            delta = (LOAD_FACTOR * nproc_load - loads[0]) + 1*TPM;
+            if ((delta>0) && (delta<2*1*TPM)) {loads[0] = nproc_load * LOAD_FACTOR;}
+
+            delta = (LOAD_FACTOR * nproc_load - loads[1]) + 5*TPM;
+            if ((delta>0) && (delta<2*5*TPM)) {loads[1] = nproc_load * LOAD_FACTOR;}
+
+            delta = (LOAD_FACTOR * nproc_load - loads[2]) + 15*TPM;
+            if ((delta>0) && (delta<2*15*TPM)) {loads[2] = nproc_load * LOAD_FACTOR;}
+
+            // printf("cnt=%d, afterload=[%d, %d, %d]\n", nproc_load, loads[0], loads[1], loads[2]);
+        }
+        release(&tickslock);
       clockintr();
     }
-    
     // acknowledge the software interrupt by clearing
     // the SSIP bit in sip.
     w_sip(r_sip() & ~2);

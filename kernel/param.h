@@ -11,3 +11,7 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
+#define TPS          10    // tick = 0.1s
+#define TPM          60*TPS
+#define LOAD_FACTOR  100000  // 1E5
+#define LOAD_SMP     5       // sample seconds, 0.2Hz    

@@ -159,6 +159,143 @@ static char *syscall_names[] = {
 [SYS_sysinfo] "sysinfo"
 };
 
+static char *desc[] = {
+[SYS_close]   "fd", 
+[SYS_dup]     "fd", 
+[SYS_kill]    "pid", 
+[SYS_sleep]   "ticks", 
+[SYS_trace]   "mask", 
+[SYS_sbrk]    "bytes"
+};
+
+void 
+print_syscall_args(int syscall_num, struct proc *p)
+{
+  int fd0, mode, n;
+  uint64 fdarray, addr;
+  char path[MAXPATH], path2[MAXPATH];  
+
+  switch (syscall_num) {
+    case SYS_fork:
+    case SYS_getpid:
+    case SYS_uptime:
+      printf("[trace-args] %d: syscall %s() -> ", p->pid, syscall_names[syscall_num]);
+      break;
+
+    case SYS_exit:
+      printf("[trace-args] %d: syscall %s(int status=%d) -> (exit)\n", p->pid, syscall_names[syscall_num], (int)argraw(0));
+      break;
+    case SYS_close:
+    case SYS_dup:
+    case SYS_kill:
+    case SYS_sleep:
+    case SYS_trace:
+    case SYS_sbrk:
+      printf("[trace-args] %d: syscall %s(int %s=%d) -> ", p->pid, syscall_names[syscall_num], desc[syscall_num], (int)argraw(0));
+      break;
+
+    case SYS_wait:
+      printf("[trace-args] %d: syscall %s(int *wstatus=%p) -> ", p->pid, syscall_names[syscall_num], argraw(0));
+      break;
+    case SYS_pipe:
+      argaddr(0, &fdarray);
+      printf("[trace-args] %d: syscall %s(int pipefd[2]@%p) -> ", p->pid, syscall_names[syscall_num], fdarray);
+      break;
+
+    case SYS_write:
+    case SYS_read:
+      argint(0, &fd0);
+      argaddr(1, &addr);
+      argint(2, &n);   
+      printf("[trace-args] %d: syscall %s(int fd=%d, uint64 addr=%p, int n=%d) -> ", p->pid, syscall_names[syscall_num], fd0, addr, n);
+      break;
+
+
+    case SYS_exec: 
+      argaddr(1, &addr);  // addr of char **argv
+      char tmp[MAXPATH];
+      uint64 straddr=0;   // addr of argv[i]
+      for (int i=0; i<MAXARG; i++) {
+        copyin(p->pagetable, (char *)(&straddr), addr+i*sizeof(char *), sizeof(uint64));
+        if (straddr == 0) break;
+
+        for (int i=0; i<MAXPATH; i++) {
+          copyin(p->pagetable, &(tmp[i]), straddr+i*sizeof(char), sizeof(char));
+          if (tmp[i]== '\0') break;
+        }
+
+        printf("%p argv[%d] -> %p -> %s\n", addr+i*sizeof(char *), i, straddr, tmp);
+      }
+
+      argstr(0, path, MAXPATH);
+      printf("[trace-args] %d: syscall %s(path=%s, argv@%p) -> ", p->pid, syscall_names[syscall_num], path, addr);
+      break;
+
+    case SYS_open: 
+      argstr(0, path, MAXPATH);
+      argint(1, &mode);
+      printf("[trace-args] %d: syscall %s(char *path=%s, mode=%d) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             path, 
+             mode);
+      break;
+
+    // unverified
+    case SYS_mknod:
+      argstr(0, path, MAXPATH);
+      printf("[trace-args] %d: syscall %s(char *path=%s, short major=%d, short minor=%d) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             path, 
+             (int)argraw(1), 
+             (int)argraw(2));
+      break;
+
+    case SYS_unlink:
+    case SYS_mkdir:
+    case SYS_chdir:
+      argstr(0, path, MAXPATH);
+      printf("[trace-args] %d: syscall %s(char *path=%s) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             path);
+      break;
+
+    case SYS_fstat:
+      argaddr(1, &addr);
+      printf("[trace-args] %d: syscall %s(int fd=%d, struct stat *p=%p) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             (int)argraw(0), 
+             addr);
+      break;
+
+    case SYS_link:
+      argstr(0, path, MAXPATH);
+      argstr(1, path2, MAXPATH);
+      printf("[trace-args] %d: syscall %s(char *old_path=%s, char *new_path=%s) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             path, 
+             path2);
+      break;
+    
+    case SYS_sysinfo:
+      argaddr(0, &addr);
+      printf("[trace-args] %d: syscall %s(struct sysinfo *p=%p) -> ", 
+             p->pid, 
+             syscall_names[syscall_num], 
+             addr);
+      break;
+
+    default: 
+      printf("[trace-args] UNKNOWN SYSCALL NUMBER\n");
+      break;
+  }
+  
+}
+
 void
 syscall(void)
 {
@@ -167,10 +304,23 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+
+      
+      if ((1 << num) & (p->tracemask)) {
+        print_syscall_args(num, p);
+      }
+      // if num==SYS_trace, and trace SYS_trace itself, should also print
+      else if ((num == SYS_trace)) {
+        if ((int)argraw(0) & (1 << num)) {
+          print_syscall_args(num, p);
+        }
+      }
+
     p->trapframe->a0 = syscalls[num]();
 
-    if ((1 << num) & (p->tracemask)) {
-      printf("%d: syscall %s -> %d\n", p->pid, syscall_names[num], p->trapframe->a0);
+    // do not print if call SYS_exit
+    if (((1 << num) & (p->tracemask)) && (num != SYS_exit)) {
+      printf("%d\n", p->trapframe->a0);
     }
 
   } else {

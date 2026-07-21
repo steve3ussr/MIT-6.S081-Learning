@@ -8,6 +8,43 @@
 #include "proc.h"
 #include "sysinfo.h"
 
+extern long loads[3];
+
+
+void itoa_load(char *s, long i_x100) {
+  if ((i_x100 < 0) || (i_x100 >= 10000)) {
+    strncpy(s, "<MAX>", 5);
+    s[5] = '\0';
+    return;
+  }
+
+  int i_x100_int = i_x100 / 100;
+  int i_x100_frg = i_x100 % 100;
+  // printf("int=%d, frg=%d\n", i_x100_int, i_x100_frg);
+  if (i_x100_int < 10) {
+    s[0] = ' ';
+    s[1] = '0' + i_x100_int;
+  } else if (i_x100_int <= 99) {
+    s[0] = '0' + (i_x100_int/10);
+    s[1] = '0' + (i_x100_int%10);
+  } else {
+    strncpy(s, "??", 2);
+  }
+  
+  s[2] = '.';
+
+  if (i_x100_frg < 10) {
+    s[3] = '0';
+    s[4] = '0' + i_x100_frg;
+  } else if (i_x100_frg <= 99) {
+    s[3] = '0' + (i_x100_frg/10);
+    s[4] = '0' + (i_x100_frg%10);
+  } else {
+    strncpy(s+3, "??", 2);
+  }
+  s[5] = '\0';
+}
+
 uint64
 sys_exit(void)
 {
@@ -130,18 +167,23 @@ uint64 sys_sysinfo(void) {
   // printf("[sys_sysinfo]\tnrpoc:\t%d processes\n", nproc);
 
   // get avg load (1min, 5min, 15min)
-  uint64 avg_load[3] = {11, 45, 14};
+
 
 
   // prepare struct
   struct sysinfo res;
   res.freemem = mem_free_bytes;
   res.nproc = (uint64) nproc;
-  res.load[0] = avg_load[0];
-  res.load[1] = avg_load[1];
-  res.load[2] = avg_load[2];
-  printf("[sys_sysinfo]\tload:\t%d, %d, %d processes\n", res.load[0], res.load[1], res.load[2]);
+  
+  int load1_x100 = loads[0]/(LOAD_FACTOR/100);
+  int load5_x100 = loads[1]/(LOAD_FACTOR/100);
+  int load15_x100 = loads[2]/(LOAD_FACTOR/100);
+  // printf("load1_x100=%d, load5_x100=%d, load15_x100=%d\n", load1_x100, load5_x100, load15_x100);
 
+  itoa_load(res.load1, load1_x100);
+  itoa_load(res.load5, load5_x100);
+  itoa_load(res.load15, load15_x100);
+  // printf("load1=%s, load5=%s, load15=%s\n", res.load1, res.load5, res.load15);
   // copyout
   struct proc *p = myproc();
   if(copyout(p->pagetable, va, (char *)&res, sizeof(res)) < 0)
