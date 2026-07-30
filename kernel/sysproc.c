@@ -94,6 +94,24 @@ sys_pgaccess(void)
   pgaccess(va_start, npages, ua);
   return 0;
 }
+
+int
+sys_pgdirty(void)
+{
+  // lab pgtbl: your code here.
+  uint64 va_start, ua;
+  int npages;
+
+  if(argaddr(0, &va_start) < 0)
+    return -1;
+  if(argint(1, &npages) < 0)
+    return -1;
+  if(argaddr(2, &ua) < 0)
+    return -1;
+
+  pgdirty(va_start, npages, ua);
+  return 0;
+}
 #endif
 
 uint64

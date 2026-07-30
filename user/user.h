@@ -30,8 +30,10 @@ int connect(uint32, uint16, uint16);
 #endif
 #ifdef LAB_PGTBL
 int pgaccess(void *base, int len, void *mask);
+int pgdirty(void *base, int len, void *mask);
 // usyscall region
 int ugetpid(void);
+int uuptime(void);
 #endif
 
 // ulib.c

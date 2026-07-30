@@ -38,4 +38,5 @@ entry("sleep");
 entry("uptime");
 entry("connect");
 entry("pgaccess");
+entry("pgdirty");
 entry("print_pagetable");

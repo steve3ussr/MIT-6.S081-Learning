@@ -503,22 +503,71 @@ void pgaccess(uint64 va_start, int npages, uint mask){
   uint64 va_curr = va_start;
   pte_t *pte;
   struct proc *p = myproc();
-  // int index_l2, index_l1, index_l0;
+  int index_l2, index_l1, index_l0;
   int flags;
   uint64 res = 0;
 
-  // printf("\ni\t Virtual Address \t Indices \t PTE_FLAGS \t\t PTE_A\n");
+  printf("\ni\t Virtual Address \t Indices \t PTE_FLAGS \t\t PTE_A \t PTE_D\n");
   for (int i=0; i<npages; i++){
     va_curr = va_start + i*PGSIZE;
-    // index_l0 = (va_curr>>12) & 0x1FF;
-    // index_l1 = (va_curr>>21) & 0x1FF;
-    // index_l2 = (va_curr>>30) & 0x1FF;
+    index_l0 = (va_curr>>12) & 0x1FF;
+    index_l1 = (va_curr>>21) & 0x1FF;
+    index_l2 = (va_curr>>30) & 0x1FF;
 
     pte = walk(p->pagetable, va_curr, 0);
     flags = PTE_FLAGS((*pte));
     res |= (((flags & PTE_A)>>6)<<i);
     *pte = (*pte) & (~(PTE_A));
-    // printf("%d\t%p \t (%d, %d, %d) \t %p \t %d\n", i, va_curr, index_l2, index_l1, index_l0, flags, ((flags & PTE_A)>>6));
+    printf("%d\t%p \t (%d, %d, %d) \t %p \t %d \t %d\n", i, va_curr, index_l2, index_l1, index_l0, flags, ((flags & PTE_A)>>6), ((flags & PTE_D)>>7));
+    
+  }
+
+  // write back
+  if(copyout(p->pagetable, mask, (char *)&res, sizeof(res)) < 0)
+      printf("<pgaccess> copyout error\n");
+  // printf("res=%p\n", res);
+}
+
+void pgdirty(uint64 va_start, int npages, uint mask){
+
+  if ((va_start <= PGSIZE) || (va_start >= MAXVA)) {
+    printf("<pgdirty> base addr(%p) out of range\n", va_start);
+    return;
+  }
+
+  if ((npages <= 0) || (npages > 32)) {
+    printf("<pgdirty> npages(%d) out of range\n", npages);
+    return;
+  }
+
+  // printf("<pgaccess> va_start round down: %p -> ", va_start);
+  va_start = PGROUNDDOWN(va_start); printf("%p\n", va_start);
+
+  uint64 va_end = va_start + (npages+1) * PGSIZE -1;
+  if ((va_end <= PGSIZE) || (va_end >= MAXVA)) {
+    printf("<pgdirty> end addr(%p) out of range\n", va_end);
+    return;
+  }
+
+  uint64 va_curr = va_start;
+  pte_t *pte;
+  struct proc *p = myproc();
+  int index_l2, index_l1, index_l0;
+  int flags;
+  uint64 res = 0;
+
+  printf("\ni\t Virtual Address \t Indices \t PTE_FLAGS \t\t PTE_A \t PTE_D\n");
+  for (int i=0; i<npages; i++){
+    va_curr = va_start + i*PGSIZE;
+    index_l0 = (va_curr>>12) & 0x1FF;
+    index_l1 = (va_curr>>21) & 0x1FF;
+    index_l2 = (va_curr>>30) & 0x1FF;
+
+    pte = walk(p->pagetable, va_curr, 0);
+    flags = PTE_FLAGS((*pte));
+    res |= (((flags & PTE_D)>>7)<<i);
+    *pte = (*pte) & (~(PTE_D));
+    printf("%d\t%p \t (%d, %d, %d) \t %p \t %d \t %d\n", i, va_curr, index_l2, index_l1, index_l0, flags, ((flags & PTE_A)>>6), ((flags & PTE_D)>>7));
     
   }
 

@@ -174,6 +174,7 @@ void            vmprint(pagetable_t);
 void            vmprint_rec(pagetable_t, int);
 uint64          sys_print_pagetable(void);
 void            pgaccess(uint64 va_start, int npages, uint mask);
+void            pgdirty(uint64 va_start, int npages, uint mask);
 
 // plic.c
 void            plicinit(void);

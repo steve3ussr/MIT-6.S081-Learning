@@ -32,3 +32,4 @@
 #define SYS_connect   29
 #define SYS_pgaccess  30
 #define SYS_print_pagetable 31
+#define SYS_pgdirty   32
