@@ -108,3 +108,5 @@ struct proc {
 
   struct usyscall *usyscall;
 };
+
+extern struct usysdata *p_usysdata;

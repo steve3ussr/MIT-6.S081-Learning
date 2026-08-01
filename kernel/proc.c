@@ -12,6 +12,8 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
+struct usysdata *p_usysdata;
+
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -216,6 +218,16 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+
+  if(mappages(pagetable, USYSDATA, PGSIZE,
+              (uint64)(p_usysdata), PTE_R | PTE_U) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmunmap(pagetable, USYSCALL, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
   return pagetable;
 }
 
@@ -227,6 +239,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmunmap(pagetable, USYSCALL, 1, 0);
+  uvmunmap(pagetable, USYSDATA, 1, 0);
   uvmfree(pagetable, sz);
 }
 
@@ -674,4 +687,11 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void usysdatainit(void) {
+  p_usysdata = (struct usysdata *)kalloc();
+  if (p_usysdata==0) {panic("init USYSDATA failed");}
+  (void)p_usysdata;
+  return;
 }

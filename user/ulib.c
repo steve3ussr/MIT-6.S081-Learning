@@ -148,4 +148,13 @@ ugetpid(void)
   struct usyscall *u = (struct usyscall *)USYSCALL;
   return u->pid;
 }
+
+int ugettime(void) {
+  /* TODO */
+  struct usysdata *p = (struct usysdata *)USYSDATA;
+  if (p) {
+    return p->uticks;
+  }
+  return 0;
+}
 #endif

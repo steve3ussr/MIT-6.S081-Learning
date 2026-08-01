@@ -53,3 +53,4 @@ int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
 int statistics(void*, int);
+int ugettime(void);

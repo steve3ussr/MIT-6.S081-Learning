@@ -164,6 +164,7 @@ clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  p_usysdata->uticks = ticks;
   wakeup(&ticks);
   release(&tickslock);
 }
