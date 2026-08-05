@@ -14,6 +14,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "symbols.h"
 
 volatile int panicked = 0;
 
@@ -140,9 +141,30 @@ backtrace(void)
   
   uint64 fp = r_fp();
   uint64 stack_top = PGROUNDUP(fp);
+  uint64 addr;
 
   while (fp < stack_top) {
-    printf("%p\n", *(uint64 *)(fp-8));
+    addr = *(uint64 *)(fp-8);
+    backtrace_print(addr);
     fp = *(uint64 *)(fp-16);
   }
+}
+
+void 
+backtrace_print(uint64 addr)
+{
+  int index=-1, length = num_symbols;
+  for(int i=0; i<length; i++){
+    if (symbols[i].addr == addr){
+      index = i;
+      break;
+    }
+  }
+
+  if (index == -1){
+    printf("%p \t %s, %s: %d\n", addr, "<unknown file>", "<unknown function>", -1);
+  } else {
+    printf("%p \t %s, %s: %d\n", addr, symbols[index].filename, symbols[index].funcname, symbols[index].lineno);
+  }
+
 }

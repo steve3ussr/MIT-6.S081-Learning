@@ -81,6 +81,7 @@ void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
 void            backtrace(void);
+void            backtrace_print(uint64 addr);
 
 // proc.c
 int             cpuid(void);
