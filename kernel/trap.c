@@ -77,9 +77,22 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  if(which_dev == 2){
+    if (p->sigalarm_enable){
+      p->sigalarm_cnt += 1;
+      if (p->sigalarm_cnt >= p->sigalarm_nticks && (p->sigalarm_executing == 0)) {
+        p->sigalarm_cnt -= p->sigalarm_nticks;
 
+        // flow control
+        memmove(p->ya_trapframe, p->trapframe, sizeof(struct trapframe));
+        // printf("[store] ya_trapframe->epc=%p\n", p->ya_trapframe->epc);
+        p->trapframe->epc = p->sigalarm_fn; 
+        p->sigalarm_executing = 1;
+
+      }
+    }
+    yield();
+  }
   usertrapret();
 }
 
@@ -137,6 +150,7 @@ kerneltrap()
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
+  struct proc *p;
   
   if((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
@@ -150,8 +164,13 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
+    p = myproc();
+    if (p->sigalarm_enable) {
+      p->sigalarm_cnt += 1;
+    }
     yield();
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.

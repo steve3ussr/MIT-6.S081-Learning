@@ -127,6 +127,13 @@ found:
     return 0;
   }
 
+  // Allocate a ya_trapframe page.
+  if((p->ya_trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -141,6 +148,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Set up for sigalarm
+  p->sigalarm_enable = 0;
   return p;
 }
 
@@ -152,6 +161,8 @@ freeproc(struct proc *p)
 {
   if(p->trapframe)
     kfree((void*)p->trapframe);
+  if(p->ya_trapframe)
+    kfree((void*)p->ya_trapframe);
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
@@ -653,4 +664,33 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+sigalarm(int nticks, uint64 fn) {
+  struct proc *p = myproc();
+
+  if (nticks != 0){
+    p->sigalarm_nticks = nticks;
+    p->sigalarm_fn = fn;
+    // p->sigalarm_ticks_init = ticks;  /* TODO: 不加锁应该问题不大, 这里只读 */
+    p->sigalarm_enable = 1;
+    p->sigalarm_cnt = 0;
+  } else {
+    p->sigalarm_enable = 0;
+  }
+
+  return 0;
+}
+
+int sigreturn(){
+  // printf("enter sigreturn\n");
+  struct proc *p = myproc();
+  memmove(p->trapframe, p->ya_trapframe, sizeof(struct trapframe));
+  // printf("[restore] p->trapframe->epc=%p\n", p->trapframe->epc);
+  memset(p->ya_trapframe, 0, sizeof(struct trapframe));
+  // p->trapframe->epc = p->sigalarm_pc_next;
+  p->sigalarm_executing = 0;
+  
+  return 0;
 }
