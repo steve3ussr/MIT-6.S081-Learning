@@ -142,6 +142,14 @@ found:
     return 0;
   }
 
+  // An replica of kernel_pagetable
+  p->pvt_kpgtbl = pvmmake();
+  if (p->pvt_kpgtbl == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -167,6 +175,11 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  // printf("[freeproc] before free pvt kpgtbl\n");
+  if(p->pvt_kpgtbl)
+    pvm_destroy(p->pvt_kpgtbl);
+  p->pvt_kpgtbl = 0;
+  // printf("[freeproc] after free pvt kpgtbl\n");
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -244,6 +257,13 @@ userinit(void)
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
+
+  // dup pagetable from user to pvt-kpgtbl
+  // printf("[userinit] pre map initcode(0-PGSIZE), walkaddr=%p\n", walkaddr(p->pagetable, 0));
+  if (mappages(p->pvt_kpgtbl, 0, PGSIZE, walkaddr(p->pagetable, 0), PTE_W|PTE_R|PTE_X|PTE_U) < 0)
+  {
+    panic("[userinit] map initcode to pvt kpgtbl");
+  }  
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -263,16 +283,22 @@ userinit(void)
 int
 growproc(int n)
 {
+  // printf("[call growproc]\n");
   uint sz;
   struct proc *p = myproc();
-
+  /* alloc dealloc for pvt_kpgtbl */
   sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    /* TODO */
+    if((pvmalloc(p->pagetable, p->pvt_kpgtbl, p->sz, p->sz + n)) == 0) {
+      return -1;
+    }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    pvmdealloc(p->pvt_kpgtbl, p->sz, p->sz+n);
   }
   p->sz = sz;
   return 0;
@@ -294,6 +320,12 @@ fork(void)
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
+
+  if(pvmcopy(p->pvt_kpgtbl, np->pvt_kpgtbl, p->sz)<0) {
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -464,7 +496,11 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        w_satp(MAKE_SATP(p->pvt_kpgtbl));
+        sfence_vma();
         swtch(&c->context, &p->context);
+        w_satp(MAKE_SATP(kernel_pagetable));
+        sfence_vma();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.

@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+extern pagetable_t kernel_pagetable;
 
 // bio.c
 void            binit(void);
@@ -108,6 +109,7 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 int             sigalarm(int, uint64);
 int             sigreturn(void);
+struct proc*    myproc(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -174,6 +176,18 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+int             pvmmap(pagetable_t, uint64, uint64, uint64, int);
+void            pvmunmap(pagetable_t, uint64, uint64);
+void            freewalk(pagetable_t);
+pagetable_t     pvmmake(void);
+void            pvm_destroy(pagetable_t kpgtbl);
+void            vmprint(pagetable_t);
+void            vmprint_rec(pagetable_t, int);
+int             pvmcopy(pagetable_t old, pagetable_t new, uint64 sz);
+pte_t*          walk(pagetable_t, uint64, int);
+int             pvmalloc(pagetable_t upgtbl, pagetable_t ppgtbl, uint64 oldsz, uint64 newsz);
+uint64          pvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+
 
 // plic.c
 void            plicinit(void);

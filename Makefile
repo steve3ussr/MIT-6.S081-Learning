@@ -204,6 +204,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_tmp\
 	$U/_alarmtest\
+	$U/_tmp_fork\
 
 
 

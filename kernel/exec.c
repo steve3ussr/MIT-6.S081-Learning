@@ -61,6 +61,18 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
+  // printf("[exec] copy pvt kpgtbl...\n");
+  /* unmap old pbt-kpgtbl */
+  // printf("[exec] unmap old pvt kpgtbl, range [0, %d)\n", p->sz);
+  pvmunmap(p->pvt_kpgtbl, 0, PGROUNDUP(p->sz)/PGSIZE);
+  // Dup program map to pvt_kpgtbl
+  // printf("[exec] map new pvt kpgtbl, range [0, %d)\n", sz);
+  if (pvmcopy(pagetable, p->pvt_kpgtbl, sz) < 0) {
+    goto bad;
+  }
+  
+  // printf("[exec] copy pvt kpgtbl success.\n");
+
   p = myproc();
   uint64 oldsz = p->sz;
 
@@ -70,6 +82,13 @@ exec(char *path, char **argv)
   uint64 sz1;
   if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
+  // map user process STACK to pvt kpgtbl
+  // printf("[exec] map stack to pvt_kpgtbl...\n");
+  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, sz + 1*PGSIZE, PTE_W|PTE_X|PTE_R|PTE_U) < 0) {
+    printf("[exec][map-pvt-kpgtbl] map stack failed.\n");
+    goto bad;
+  }
+  // printf("[exec] mapped\n");
   sz = sz1;
   uvmclear(pagetable, sz-2*PGSIZE);
   sp = sz;

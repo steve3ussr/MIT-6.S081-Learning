@@ -8,6 +8,14 @@
 int
 main(int argc, char *argv[])
 {
-  sleep(1);
+  char *addr = sbrk(7);
+  strcpy(addr, "114514\0");
+  printf("[user space] addr(%p) = %s\n", addr, addr);
+
+ 
+
+  addr = sbrk(-7);
+  printf("[user space] addr(%p) = %s\n", addr, addr);
+
   exit(0);
 }
