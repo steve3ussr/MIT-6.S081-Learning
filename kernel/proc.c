@@ -260,7 +260,7 @@ userinit(void)
 
   // dup pagetable from user to pvt-kpgtbl
   // printf("[userinit] pre map initcode(0-PGSIZE), walkaddr=%p\n", walkaddr(p->pagetable, 0));
-  if (mappages(p->pvt_kpgtbl, 0, PGSIZE, walkaddr(p->pagetable, 0), PTE_W|PTE_R|PTE_X|PTE_U) < 0)
+  if (mappages(p->pvt_kpgtbl, 0, PGSIZE, walkaddr(p->pagetable, 0), PTE_W|PTE_R|PTE_X) < 0)
   {
     panic("[userinit] map initcode to pvt kpgtbl");
   }  

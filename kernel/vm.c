@@ -212,8 +212,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
-    if((pte = walk(pagetable, a, 1)) == 0)
+    if((pte = walk(pagetable, a, 1)) == 0){
+      // printf("[mappages] walk error, va=%p, pte=%p, *pte=%p\n", a, pte, *pte);
       return -1;
+    }
     if(*pte & PTE_V)
       panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
@@ -456,7 +458,11 @@ pvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    
+    if (flags & PTE_U){
+      flags = flags & (~PTE_U);
+    }
+    // printf("[pvmcopy] old flags=%p, new flags=%p\n", PTE_FLAGS(*pte), flags);
+    // printf("[pvmcopy] i(va)=%p, pa=%p\n", i, pa);
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       return -1;
     }
@@ -489,7 +495,7 @@ pvmalloc(pagetable_t upgtbl, pagetable_t ppgtbl, uint64 oldsz, uint64 newsz)
       return 0;
     }
 
-    if(mappages(ppgtbl, a, PGSIZE, pa, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    if(mappages(ppgtbl, a, PGSIZE, pa, PTE_W|PTE_X|PTE_R) != 0){
       pvmdealloc(ppgtbl, a, oldsz);
       return 0;
     }
@@ -543,13 +549,31 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  // printf("dst=%p, src=%p, len=%d\n", dst, srcva, len);
-  // (void)pagetable;
   // struct proc *p = myproc();
-  // if ((srcva >= p->sz) || (srcva+len > p->sz) || (srcva+len < srcva))
+  // (void)p;
+  // (void)pagetable;
+  // 1. 边界与安全检查：
+  // - srcva + len < srcva : 防止 64 位加法溢出（Wrap-around 攻击）
+  // - srcva >= p->sz      : 起始虚拟地址越界
+  // - srcva + len > p->sz  : 拷贝结束位置超出了当前进程申请的内存上限
+  // if (srcva + len < srcva || srcva >= p->sz || srcva + len > p->sz)
   //   return -1;
-  // printf("ready to memmove\n");
+
+  // pte_t *pte = walk(p->pvt_kpgtbl, srcva, 0);
+  // if (pte == 0) {
+  //     printf("copyin Fault: VA 0x%x 在 pvt_kpgtbl 中根本没有建立映射!\n", srcva);
+  // } else if ((*pte & PTE_V) == 0) {
+  //     printf("copyin Fault: VA 0x%x 对应的 PTE_V 无效!\n", srcva);
+  // } else if (*pte & PTE_U) {
+  //     printf("copyin Fault: VA 0x%x 对应的 PTE 仍带有 PTE_U 标志位! (PTE 值为 0x%x)\n", srcva, *pte);
+  // }
+  
+
+  // 2. 内存拷贝：
+  // 此时当前 CPU 的 satp 寄存器指向 p->pvt_kpgtbl（没有 PTE_U 标志位），
+  // 硬件 MMU 会自动将 srcva 映射为物理地址，直接使用 memmove 即可。
   // memmove(dst, (void *)srcva, len);
+
   // return 0;
 
 

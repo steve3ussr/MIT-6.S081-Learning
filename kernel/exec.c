@@ -67,7 +67,9 @@ exec(char *path, char **argv)
   pvmunmap(p->pvt_kpgtbl, 0, PGROUNDUP(p->sz)/PGSIZE);
   // Dup program map to pvt_kpgtbl
   // printf("[exec] map new pvt kpgtbl, range [0, %d)\n", sz);
+  // printf("[exec] before-pvmcopy\n");
   if (pvmcopy(pagetable, p->pvt_kpgtbl, sz) < 0) {
+    printf("[exec] pvmcopy failed\n");
     goto bad;
   }
   
@@ -84,7 +86,7 @@ exec(char *path, char **argv)
     goto bad;
   // map user process STACK to pvt kpgtbl
   // printf("[exec] map stack to pvt_kpgtbl...\n");
-  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, sz + 1*PGSIZE, PTE_W|PTE_X|PTE_R|PTE_U) < 0) {
+  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, sz + 1*PGSIZE, PTE_W|PTE_X|PTE_R) < 0) {
     printf("[exec][map-pvt-kpgtbl] map stack failed.\n");
     goto bad;
   }
