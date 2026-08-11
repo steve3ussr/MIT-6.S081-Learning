@@ -18,7 +18,7 @@ exec(char *path, char **argv)
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
-  pagetable_t pagetable = 0, oldpagetable;
+  pagetable_t pagetable = 0, oldpagetable, new_kpgtbl=0;
   struct proc *p = myproc();
 
   begin_op();
@@ -28,6 +28,11 @@ exec(char *path, char **argv)
     return -1;
   }
   ilock(ip);
+
+  if ((new_kpgtbl = pvmmake()) == 0) {
+    printf("[exec] alloc new kpgtbl failed. \n");
+    goto bad;
+  }
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
@@ -61,14 +66,7 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
-  // printf("[exec] copy pvt kpgtbl...\n");
-  /* unmap old pbt-kpgtbl */
-  // printf("[exec] unmap old pvt kpgtbl, range [0, %d)\n", p->sz);
-  pvmunmap(p->pvt_kpgtbl, 0, PGROUNDUP(p->sz)/PGSIZE);
-  // Dup program map to pvt_kpgtbl
-  // printf("[exec] map new pvt kpgtbl, range [0, %d)\n", sz);
-  // printf("[exec] before-pvmcopy\n");
-  if (pvmcopy(pagetable, p->pvt_kpgtbl, sz) < 0) {
+  if (pvmcopy(pagetable, new_kpgtbl, sz) < 0) {
     printf("[exec] pvmcopy failed\n");
     goto bad;
   }
@@ -85,8 +83,7 @@ exec(char *path, char **argv)
   if((sz1 = uvmalloc(pagetable, sz, sz + 2*PGSIZE)) == 0)
     goto bad;
   // map user process STACK to pvt kpgtbl
-  // printf("[exec] map stack to pvt_kpgtbl...\n");
-  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, PTE2PA(*walk(pagetable, sz + 1*PGSIZE, 0)), PTE_W|PTE_X|PTE_R) < 0) {
+  if (mappages(new_kpgtbl, sz + 1*PGSIZE, PGSIZE, PTE2PA(*walk(pagetable, sz + 1*PGSIZE, 0)), PTE_W|PTE_X|PTE_R) < 0) {
     printf("[exec][map-pvt-kpgtbl] map stack failed.\n");
     goto bad;
   }
@@ -132,17 +129,27 @@ exec(char *path, char **argv)
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
+  pvmunmap(p->pvt_kpgtbl, 0, PGROUNDUP(p->sz)/PGSIZE);
   p->sz = sz;
+
+  if (pvmcopy(new_kpgtbl, p->pvt_kpgtbl, sz) < 0) {
+    printf("[exec] pvmcopy failed: new_kpgtbl -> p->pvt_kpgtbl\n");
+    goto bad;
+  } else {
+    pvm_destroy(new_kpgtbl);
+  }
+
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
-  // vmprint_page0(p->pagetable, "exec-ret-U");
-  // vmprint_page0(p->pvt_kpgtbl, "exec-ret-K");
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
   if(pagetable)
     proc_freepagetable(pagetable, sz);
+  if (new_kpgtbl)
+    pvm_destroy(new_kpgtbl);
   if(ip){
     iunlockput(ip);
     end_op();
