@@ -325,7 +325,7 @@ fork(void)
     return -1;
   }
 
-  if(pvmcopy(p->pvt_kpgtbl, np->pvt_kpgtbl, p->sz)<0) {
+  if(pvmcopy(np->pagetable, np->pvt_kpgtbl, p->sz)<0) {
     freeproc(np);
     release(&np->lock);
     return -1;

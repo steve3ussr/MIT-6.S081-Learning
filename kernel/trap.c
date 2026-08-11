@@ -114,7 +114,7 @@ usertrapret(void)
 
   // set up trapframe values that uservec will need when
   // the process next re-enters the kernel.
-  p->trapframe->kernel_satp = r_satp();         // kernel page table
+  // p->trapframe->kernel_satp = r_satp();         // kernel page table
   // printf("trapframe->kernel_satp = %p\n", p->trapframe->kernel_satp);
   p->trapframe->kernel_satp = MAKE_SATP((uint64)(p->pvt_kpgtbl));
   // printf("trapframe->kernel_satp = %p, original pgtbl=%p\n", p->trapframe->kernel_satp, (uint64)(p->pvt_kpgtbl));

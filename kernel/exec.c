@@ -86,7 +86,7 @@ exec(char *path, char **argv)
     goto bad;
   // map user process STACK to pvt kpgtbl
   // printf("[exec] map stack to pvt_kpgtbl...\n");
-  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, sz + 1*PGSIZE, PTE_W|PTE_X|PTE_R) < 0) {
+  if (mappages(p->pvt_kpgtbl, sz + 1*PGSIZE, PGSIZE, PTE2PA(*walk(pagetable, sz + 1*PGSIZE, 0)), PTE_W|PTE_X|PTE_R) < 0) {
     printf("[exec][map-pvt-kpgtbl] map stack failed.\n");
     goto bad;
   }
@@ -136,7 +136,8 @@ exec(char *path, char **argv)
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
-
+  // vmprint_page0(p->pagetable, "exec-ret-U");
+  // vmprint_page0(p->pvt_kpgtbl, "exec-ret-K");
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

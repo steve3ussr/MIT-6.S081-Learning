@@ -549,15 +549,15 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  // struct proc *p = myproc();
-  // (void)p;
-  // (void)pagetable;
+  struct proc *p = myproc();
+  (void)p;
+  (void)pagetable;
   // 1. 边界与安全检查：
   // - srcva + len < srcva : 防止 64 位加法溢出（Wrap-around 攻击）
   // - srcva >= p->sz      : 起始虚拟地址越界
   // - srcva + len > p->sz  : 拷贝结束位置超出了当前进程申请的内存上限
-  // if (srcva + len < srcva || srcva >= p->sz || srcva + len > p->sz)
-  //   return -1;
+  if (srcva + len < srcva || srcva >= p->sz || srcva + len > p->sz)
+    return -1;
 
   // pte_t *pte = walk(p->pvt_kpgtbl, srcva, 0);
   // if (pte == 0) {
@@ -569,31 +569,58 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
   // }
   
 
-  // 2. 内存拷贝：
-  // 此时当前 CPU 的 satp 寄存器指向 p->pvt_kpgtbl（没有 PTE_U 标志位），
-  // 硬件 MMU 会自动将 srcva 映射为物理地址，直接使用 memmove 即可。
-  // memmove(dst, (void *)srcva, len);
+  // // 2. 内存拷贝：
+  // // 此时当前 CPU 的 satp 寄存器指向 p->pvt_kpgtbl（没有 PTE_U 标志位），
+  // // 硬件 MMU 会自动将 srcva 映射为物理地址，直接使用 memmove 即可。
+  memmove(dst, (void *)srcva, len);
 
-  // return 0;
-
-
-  uint64 n, va0, pa0;
-
-  while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
-
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
   return 0;
+
+
+  // uint64 n, va0, pa0;
+  // pte_t *pte_user, *pte_pvtk;
+  // uint64 pa_user, pa_pvtk, flg_user, flg_pvtk;
+  
+  // while(len > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   if (va0 >= MAXVA) return -1;
+
+  //   pte_user = walk(p->pagetable, va0, 0);
+  //   pte_pvtk = walk(p->pvt_kpgtbl, va0, 0);
+    
+
+  //   if ((pte_user==0 && pte_pvtk) || (pte_user && pte_pvtk==0)) {
+  //     printf("[copyin][PTE DISAGREE][va=%p] pte_user=%p, pte_pvtk=%p\n", va0, pte_user, pte_pvtk);
+  //     return -1;
+  //   }
+
+  //   pa_user = PTE2PA(*pte_user); pa_pvtk = PTE2PA(*pte_pvtk);
+  //   if ((pa_user==0 && pa_pvtk) || (pa_user && pa_pvtk==0)) {
+  //     printf("[copyin][PTE2PA DISAGREE][va=%p] pa_user=%p, pa_pvtk=%p\n", va0, PTE2PA(*pte_user), PTE2PA(*pte_pvtk));
+  //   }
+
+  //   flg_user = PTE_FLAGS(*pte_user); flg_pvtk = PTE_FLAGS(*pte_pvtk);
+  //   if ((flg_user&0x1F) != ((flg_pvtk & 0x1F) | PTE_U)) {
+  //     printf("[copyin][PTE_FLAGS DISAGREE][va=%p] flg_user=%p, flg_pvtk=%p\n",  va0, flg_user, flg_pvtk);
+  //   }
+  //   if (flg_pvtk & PTE_U) {
+  //     printf("[copyin][PTE_FLAGS has U in pvtk] flg_pvtk=%p\n", flg_pvtk);
+  //   }
+
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   pa0 = pa_pvtk;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > len)
+  //     n = len;
+  //   memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+
+  //   len -= n;
+  //   dst += n;
+  //   srcva = va0 + PGSIZE;
+  // }
+  // return 0;
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -603,8 +630,42 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  // struct proc *p = myproc();
+  // if (srcva >= p->sz || (uint64)dst >= MAXVA) {
+  //   return -1;
+  // }
+  
+  // (void)pagetable;
+  // uint64 n = max;
+  // char tmp;
+  // while (n > 0) {
+  //   if (srcva >= p->sz) {
+  //     return -1;
+  //   }
+  //   tmp = *(char *)srcva;
+  //   if (tmp == '\0') {
+  //     break;
+  //   }
+  //   *dst = *(char *)srcva;
+  //   n--;
+  //   dst++;
+  //   srcva++;
+  //   if (srcva >= p->sz || (uint64)dst >= MAXVA) {
+  //     return -1;
+  //   }
+  // }
+
+  // if (n==0) return -1;
+  // if (*(char *)srcva == '\0') {
+  //   *dst = '\0';
+  // }
+  // return 0;
+
+
   uint64 n, va0, pa0;
   int got_null = 0;
+  struct proc *p = myproc();
+  (void)p;
 
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);
@@ -615,6 +676,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     if(n > max)
       n = max;
 
+    // char *p = (char *) (pa0 + (srcva - va0));
     char *p = (char *) (pa0 + (srcva - va0));
     while(n > 0){
       if(*p == '\0'){
@@ -668,6 +730,40 @@ void vmprint_rec(pagetable_t pagetable, int level)
 
     if (level > 0) {
       vmprint_rec((pagetable_t)PTE2PA(pte), level-1);
+    }
+
+  }
+
+}
+
+void 
+vmprint_page0(pagetable_t pagetable, char *desc) 
+{ 
+  printf("page table %p, %s\n", pagetable, desc);
+  vmprint_rec_limit((pagetable_t)PTE2PA(pagetable[0]), 1, 96);
+}
+
+void vmprint_rec_limit(pagetable_t pagetable, int level, int cnt)
+{
+  pte_t pte;
+  for(int i=0; i<cnt; i++) {
+    pte = pagetable[i];
+    
+    // jump over invalid PTE
+    if ((pte & PTE_V)==0) continue;
+
+    // level>0  &&  not-leaf, panic
+    if (level>0 && ((pte & (PTE_R|PTE_W|PTE_X)) > 0)) 
+      panic("print page table");
+
+    // print
+    for (int j=0; j<(3-level); j++) printf(" ..");
+    printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+
+    // descend if non-leaf
+
+    if (level > 0) {
+      vmprint_rec_limit((pagetable_t)PTE2PA(pte), level-1, 512);
     }
 
   }
