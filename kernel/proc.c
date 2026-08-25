@@ -654,3 +654,19 @@ procdump(void)
     printf("\n");
   }
 }
+
+void
+debug_show_mem(int pid, uint64 va, char *desc)
+{
+  printf("%s ------> ", desc);
+  struct proc *p;
+  pte_t *pte;
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(((p->state == RUNNING) || (p->state == RUNNABLE) || (p->state == SLEEPING)) && (p->pid == pid)) {
+      pte = walk(p->pagetable, va, 0);
+      printf("[DEBUG][show-mem] proc (%s, %d) va=%p, pa=%p, content=%p\n", p->name, p->pid, va, PTE2PA(*pte), *((uint64 *)PTE2PA(*pte)));
+      return;
+    }
+  }
+  printf("[DEBUG][show-mem] proc mismatch (pid=%d)\n", p->pid);
+}

@@ -30,7 +30,8 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o \
+  $K/symbols.o
 
 OBJS_KCSAN = \
   $K/start.o \
@@ -86,7 +87,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -Wno-error=infinite-recursion
 
 ifdef LAB
 LABUPPER = $(shell echo $(LAB) | tr a-z A-Z)
@@ -118,6 +119,19 @@ CFLAGS += -fno-pie -nopie
 endif
 
 LDFLAGS = -z max-page-size=4096
+
+$K/symbols.c: $(filter-out $K/symbols.o, $(OBJS)) $(OBJS) $(OBJS_KCSAN) $K/kernel.ld $U/initcode
+	@echo "==> [Pass 1] 编译临时占位符号表..."
+	@echo '#include "types.h"' > $K/symbols.c
+	@echo '#include "symbols.h"' >> $K/symbols.c
+	@echo 'const struct symbol symbols[] = {};' >> $K/symbols.c
+	@echo 'const int num_symbols = 0;' >> $K/symbols.c
+	$(CC) $(CFLAGS) -c $K/symbols.c -o $K/symbols.o
+	@echo "==> [Pass 2] 链接临时内核 kernel_tmp..."
+	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel_tmp $(OBJS) $(OBJS_KCSAN)
+	@echo "==> [Pass 3] 提取符号信息并生成真正的 $K/symbols.c..."
+	python3 $K/gensymbols.py $K/kernel_tmp > $K/symbols.c
+	@rm -f $K/kernel_tmp $K/symbols.o
 
 $K/kernel: $(OBJS) $(OBJS_KCSAN) $K/kernel.ld $U/initcode
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) $(OBJS_KCSAN)
@@ -188,6 +202,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_tmp_fork
 
 
 
@@ -269,6 +284,7 @@ clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
 	$U/initcode $U/initcode.out $K/kernel fs.img \
+	$K/symbols.c $K/symbols.o \
 	mkfs/mkfs .gdbinit \
         $U/usys.S \
 	$(UPROGS) \

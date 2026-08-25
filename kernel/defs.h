@@ -63,6 +63,10 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            debug_show_page_refcnt(char *desc);
+void            set_page_refcnt(void* start, void* end, int cnt);
+extern struct spinlock page_refcnt_lock;
+extern char page_refcnt[];
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -80,6 +84,8 @@ int             pipewrite(struct pipe*, uint64, int);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
+void            backtrace(void);
+void            backtrace_print(uint64 addr);
 
 // proc.c
 int             cpuid(void);
@@ -104,6 +110,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+void            debug_show_mem(int pid, uint64 va, char *desc);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -170,6 +177,9 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
+void            vmprint(pagetable_t, char *);
+void            vmprint_rec(pagetable_t, int);
 
 // plic.c
 void            plicinit(void);
