@@ -65,6 +65,48 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } 
+  // else if (r_scause() == 0xd)
+  // {
+  //   printf("[usertrap] trigger 0xd load page fault\n");
+  // } 
+  else if (r_scause() == 0xf) {
+    // printf("[usertrap][load pgfault] proc(%d, %s) epc=%p, sp=%p\n", p->pid, p->name, p->trapframe->epc, p->trapframe->sp);
+    uint64 va = r_stval();
+    pte_t *pte;
+    
+
+    if (va >= p->sz || va >= MAXVA) {// ?
+        p->killed = 1;// ?
+    }// ?
+    else {
+      va = PGROUNDDOWN(va); // ?
+      
+      pte=walk(p->pagetable, va, 0);
+
+      if ((pte == 0) || ((*pte & PTE_V) == 0) || ((*pte & PTE_COW) == 0)) {
+        // printf("[usertrap][store pagefault] invalid store pagefault cond, kill proc\n");
+        p->killed = 1;
+      } else {
+          char *new_pa;
+          if ((new_pa = kalloc()) == 0) {
+            p->killed = 1;
+          } else {
+            uint64 old_pa = PTE2PA(*pte);
+            uint flags = PTE_FLAGS(*pte);
+            flags = (flags | PTE_W) & (~PTE_COW);
+
+            // printf("[usertrap][Load PageFault] proc(%d, %s) realloc %p -> %p, new flags %p\n", p->pid, p->name, old_pa, new_pa, flags);
+            
+            memmove(new_pa, (char*)old_pa, PGSIZE);
+            kfree((void *)old_pa);
+            *pte = PA2PTE(new_pa) | flags;
+          }
+
+      }
+    }
+    
+    
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
