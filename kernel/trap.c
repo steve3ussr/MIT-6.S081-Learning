@@ -66,46 +66,97 @@ usertrap(void)
 
     syscall();
   } 
-  // else if (r_scause() == 0xd)
-  // {
-  //   printf("[usertrap] trigger 0xd load page fault\n");
-  // } 
+  else if (r_scause() == 0xd) {
+    uint64 va = r_stval();
+    pte_t *pte;
+  
+    if (va >= p->sz || va >= MAXVA) {
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+      exit(-1);
+    }
+
+    va = PGROUNDDOWN(va);
+    pte=walk(p->pagetable, va, 0);
+
+    /* LAZY PAGING */
+    if ((pte == 0) || ((*pte & PTE_V) == 0))
+    {
+      if ((va < (p->ustack+PGSIZE)) || (uvmalloc(p->pagetable, va, va+PGSIZE) == 0)) {
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+        exit(-1);
+      }
+      /*
+       * if va in heap range, and uvmalloc success: restore user proc
+       */
+    }
+
+    /* OTHER CONDITIONS */
+    else
+    {
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+      exit(-1);
+    }
+  } 
   else if (r_scause() == 0xf) {
-    // printf("[usertrap][load pgfault] proc(%d, %s) epc=%p, sp=%p\n", p->pid, p->name, p->trapframe->epc, p->trapframe->sp);
+    
     uint64 va = r_stval();
     pte_t *pte;
     
+    if (va >= p->sz || va >= MAXVA) {
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+      exit(-1);
+    }
 
-    if (va >= p->sz || va >= MAXVA) {// ?
-        p->killed = 1;// ?
-    }// ?
-    else {
-      va = PGROUNDDOWN(va); // ?
-      
-      pte=walk(p->pagetable, va, 0);
+    va = PGROUNDDOWN(va);
+    pte=walk(p->pagetable, va, 0);
 
-      if ((pte == 0) || ((*pte & PTE_V) == 0) || ((*pte & PTE_COW) == 0)) {
-        // printf("[usertrap][store pagefault] invalid store pagefault cond, kill proc\n");
+    /* LAZY PAGING */
+    if ((pte == 0) || (*pte & PTE_V) == 0)
+    {
+      if (va < (p->ustack+PGSIZE) || (uvmalloc(p->pagetable, va, va+PGSIZE) == 0)) {
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         p->killed = 1;
-      } else {
-          char *new_pa;
-          if ((new_pa = kalloc()) == 0) {
-            p->killed = 1;
-          } else {
-            uint64 old_pa = PTE2PA(*pte);
-            uint flags = PTE_FLAGS(*pte);
-            flags = (flags | PTE_W) & (~PTE_COW);
-
-            // printf("[usertrap][Load PageFault] proc(%d, %s) realloc %p -> %p, new flags %p\n", p->pid, p->name, old_pa, new_pa, flags);
-            
-            memmove(new_pa, (char*)old_pa, PGSIZE);
-            kfree((void *)old_pa);
-            *pte = PA2PTE(new_pa) | flags;
-          }
-
+        exit(-1);
       }
     }
-    
+
+    /* COW */
+    else if ((*pte & PTE_COW) == PTE_COW)
+    {
+      char *new_pa;
+      if ((new_pa = kalloc()) == 0) {
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+        exit(-1);
+      }
+
+      uint64 old_pa = PTE2PA(*pte);
+      uint flags = PTE_FLAGS(*pte);
+      flags = (flags | PTE_W) & (~PTE_COW);
+
+      memmove(new_pa, (char*)old_pa, PGSIZE);
+      kfree((void *)old_pa);
+      *pte = PA2PTE(new_pa) | flags;
+    }
+
+    /* OTHER CONDITIONS */
+    else
+    {
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+      exit(-1);
+    }
     
   } else if((which_dev = devintr()) != 0){
     // ok

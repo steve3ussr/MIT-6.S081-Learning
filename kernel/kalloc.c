@@ -56,8 +56,6 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-
-
   r = (struct run*)pa;
 
   acquire(&page_refcnt_lock);
@@ -74,8 +72,6 @@ kfree(void *pa)
         r->next = kmem.freelist;
         kmem.freelist = r;
       release(&kmem.lock);
-    } else {
-        // printf("pa %p refcnt>0, do not really free\n", pa);
     }
   release(&page_refcnt_lock);
 }

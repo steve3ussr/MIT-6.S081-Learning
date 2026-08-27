@@ -257,9 +257,11 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
+    if (p->sz + n + KERNBASE >= PHYSTOP) {  /* return -1 if cannot alloc that much */
       return -1;
     }
+    p->sz += n;
+    return 0;
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
@@ -288,6 +290,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->ustack = p->ustack;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);

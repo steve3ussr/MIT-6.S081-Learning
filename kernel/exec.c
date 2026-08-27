@@ -72,6 +72,7 @@ exec(char *path, char **argv)
     goto bad;
   sz = sz1;
   uvmclear(pagetable, sz-2*PGSIZE);
+  p->ustack = sz-PGSIZE;  // to record stackbase
   sp = sz;
   stackbase = sp - PGSIZE;
 
