@@ -11,6 +11,9 @@
 #define TX_RING_SIZE 16
 static struct tx_desc tx_ring[TX_RING_SIZE] __attribute__((aligned(16)));
 static struct mbuf *tx_mbufs[TX_RING_SIZE];
+static struct mbuf *txq[TX_RING_SIZE];
+int txq_len = 0;
+int txq_head = 0;
 
 #define RX_RING_SIZE 16
 static struct rx_desc rx_ring[RX_RING_SIZE] __attribute__((aligned(16)));
@@ -94,74 +97,109 @@ e1000_init(uint32 *xregs)
   regs[E1000_RDTR] = 0; // interrupt after every received packet (no timer)
   regs[E1000_RADV] = 0; // interrupt after every packet (no timer)
   regs[E1000_IMS] = (1 << 7); // RXDW -- Receiver Descriptor Write Back
+
+  // ask e1000 for transmit interrupt
+  regs[E1000_IMS] |= (1<<0);  // 0-TXDW (Descriptor Written Back)
 }
 
 int
 e1000_transmit(struct mbuf *m)
 {
-  //
-  // Your code here.
-  //
-  // the mbuf contains an ethernet frame; program it into
-  // the TX descriptor ring so that the e1000 sends it. Stash
-  // a pointer so that it can be freed after sending.
-  //
-  
   acquire(&e1000_tx_lock);
 
-  // 1. First ask the E1000 for the TX ring index at which it's expecting the next packet, by reading the E1000_TDT control register.
-  int tdt = regs[E1000_TDT];
+  int td_head=regs[E1000_TDH], td_tail = regs[E1000_TDT];
+  if ((td_head == td_tail) && (txq_len==0)) {  // send immediately
 
-  // 2. Then check if the the ring is overflowing. If E1000_TXD_STAT_DD is not set in the descriptor indexed by E1000_TDT, the E1000 hasn't finished the corresponding previous transmission request, so return an error.
-  if ((tx_ring[tdt].status & E1000_TXD_STAT_DD) == 0) {
-    printf("[e1000_Tx ERROR]: tx_ring TxDesc DD=0(job not finished) \n");
+    // 1. check td_tail overflow 
+    if ((tx_ring[td_tail].status & E1000_TXD_STAT_DD) == 0) {
+      printf("[e1000_Tx ERROR]: tx_ring TxDesc DD=0(job not finished) \n");
+      goto array_full;
+    }
+
+    // 2. free td_tail - mbuf
+    if (tx_mbufs[td_tail] != 0) {
+      mbuffree(tx_mbufs[td_tail]);
+    }
+
+    // 3. send and record in shadow array
+    tx_ring[td_tail].addr = (uint64)m->head;
+    tx_ring[td_tail].length = m->len;
+    tx_ring[td_tail].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+    tx_ring[td_tail].status = 0;
+    tx_ring[td_tail].css = 0;
+    tx_ring[td_tail].special = 0;
+
+    tx_mbufs[td_tail] = m;
+
+    // 4. update register
+    regs[E1000_TDT] = (td_tail+1) % TX_RING_SIZE;
+    release(&e1000_tx_lock);
+    return 0;
+  } 
+
+  
+  if (txq_len == TX_RING_SIZE) 
+  {
+    printf("[e1000_Tx ERROR]: tx queue full, cannot append. \n");
+    goto array_full;
+  }
+
+  goto append;
+  
+
+  array_full:
+    release(&e1000_tx_lock);
     return -1;
-  }
 
-  // 3. Otherwise, use mbuffree() to free the last mbuf that was transmitted from that descriptor (if there was one)
-  if (tx_mbufs[tdt] != 0) {
-    mbuffree(tx_mbufs[tdt]);
-  }
+  append:
+    txq[(txq_head+txq_len)%TX_RING_SIZE] = m;
+    txq_len += 1;
+    release(&e1000_tx_lock);
+    e1000_send();
+    return 0;
+}
 
-  // 4. Then fill in the descriptor. 
-  //    m->head points to the packet's content in memory, 
-  //    and m->len is the packet length. 
-  //    Set the necessary cmd flags (look at Section 3.3 in the E1000 manual), 
-  //    and stash away a pointer to the mbuf for later freeing.
-  /*  
-   *  struct tx_desc
-      {
-        uint64 addr;
-        uint16 length;
-        uint8 cso;
-        uint8 cmd;
-        uint8 status;
-        uint8 css;
-        uint16 special;
-       };
 
-       struct mbuf {
-          struct mbuf  *next; // the next mbuf in the chain
-          char         *head; // the current start position of the buffer
-          unsigned int len;   // the length of the buffer
-          char         buf[MBUF_SIZE]; // the backing store
-        };
-   */
-  tx_ring[tdt].addr = (uint64)m->head;
-  tx_ring[tdt].length = m->len;
-  tx_ring[tdt].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
-  tx_ring[tdt].status = 0;
-  tx_ring[tdt].css = 0;
-  tx_ring[tdt].special = 0;
+void
+e1000_send(void)
+{
+  acquire(&e1000_tx_lock);
+  
+  while (txq_len) {
+    int td_tail = regs[E1000_TDT];
+    // 1. check td_tail overflow 
+    if ((tx_ring[td_tail].status & E1000_TXD_STAT_DD) == 0) {
+      printf("[e1000_send ERROR]: tx_ring TxDesc DD=0(job not finished) \n");
+      break;
+    }
 
-  tx_mbufs[tdt] = m;
+    // 2. free td_tail - mbuf
+    if (tx_mbufs[td_tail] != 0) {
+      mbuffree(tx_mbufs[td_tail]);
+    }
 
-  // 5. Finally, update the ring position by adding one to E1000_TDT modulo TX_RING_SIZE.
-  regs[E1000_TDT] = (tdt+1) % TX_RING_SIZE;
+    struct mbuf *m = txq[txq_head];
+    // 3. send and record in shadow array
+    tx_ring[td_tail].addr = (uint64)m->head;
+    tx_ring[td_tail].length = m->len;
+    tx_ring[td_tail].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+    tx_ring[td_tail].status = 0;
+    tx_ring[td_tail].css = 0;
+    tx_ring[td_tail].special = 0;
+
+    tx_mbufs[td_tail] = m;
+
+    // 4. update register
+    regs[E1000_TDT] = (td_tail+1) % TX_RING_SIZE;
+
+    // 4. update txq
+    txq_len -= 1;
+    txq_head = (txq_head+1)%TX_RING_SIZE;
+  } 
 
   release(&e1000_tx_lock);
-  return 0;
 }
+
 
 static void
 e1000_recv(void)
@@ -213,7 +251,14 @@ e1000_intr(void)
   // tell the e1000 we've seen this interrupt;
   // without this the e1000 won't raise any
   // further interrupts.
-  regs[E1000_ICR] = 0xffffffff;
+  int icr = regs[E1000_ICR];
 
-  e1000_recv();
+  if (icr & E1000_ICR_TXDW) {
+    e1000_send();
+  } 
+
+  if (icr & E1000_ICR_RXT0) {
+    e1000_recv();
+  }
+  
 }

@@ -123,3 +123,7 @@ struct rx_desc
   uint16 special;
 };
 
+/* ICR (Interrupt Cause Read) Register bit definitions [E1000 13.4.17] */
+#define E1000_ICR_TXDW          (1<<0)  /* Transmit Descriptor Written Back */
+#define E1000_ICR_TXQE          (1<<1)  /* Transmit Queue Empty */
+#define E1000_ICR_RXT0          (1<<7)  /* Receiver Timer Interrupt */
