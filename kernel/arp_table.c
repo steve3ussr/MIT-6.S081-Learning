@@ -163,11 +163,11 @@ arp_table_add_locked(uint32 ip, const uint8 *mac, int type)
         /* CASE 1.3: PENDING, add PENDING: Update info. 
                      If ARP Request expired, tx again. */
         else if(p->state == ARP_ENTRY_PENDING && type == ARP_ENTRY_PENDING) {
-            if (ticks - p->tick_arp_req > ARP_REQ_TIMEOUT) {
-                /* TODO: re-transmit ARP Request */
-                p->tick_arp_req = ticks;
-                return p;
-            }
+            // now the caller should update tick_arp_req and re-transmit ARP request. 
+            // if (ticks - p->tick_arp_req > ARP_REQ_TIMEOUT) {
+            //     p->tick_arp_req = ticks;
+            // }
+            return p;
         }
 
         /* CASE 1.4: PENDING, add RESOLVED: replace */
