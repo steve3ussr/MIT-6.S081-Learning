@@ -56,7 +56,8 @@ OBJS += \
 	$K/e1000.o \
 	$K/net.o \
 	$K/sysnet.o \
-	$K/pci.o
+	$K/pci.o \
+	$K/arp_table.o
 endif
 
 
@@ -188,6 +189,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_tmp \
+	$U/_arp
 
 
 
@@ -294,7 +297,10 @@ QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
 ifeq ($(LAB),net)
-QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+# For nettests: 
+# QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
+# For debug: 
+QEMUOPTS += -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -object filter-dump,id=net0-dump,netdev=net0,file=packets.pcap
 QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
 endif
 

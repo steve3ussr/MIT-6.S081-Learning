@@ -31,7 +31,7 @@ fetchstr(uint64 addr, char *buf, int max)
   return strlen(buf);
 }
 
-static uint64
+uint64
 argraw(int n)
 {
   struct proc *p = myproc();
@@ -106,6 +106,13 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
+extern uint64 sys_arp_show(void);
+extern uint64 sys_arp_add(void);
+extern uint64 sys_arp_autofill(void);
+extern uint64 sys_sim_rx(void);
+extern uint64 sys_sim_tx(void);
+extern uint64 sys_sim_rx_arp_reply(void);
+
 #endif
 #ifdef LAB_PGTBL
 extern uint64 sys_pgaccess(void);
@@ -135,6 +142,12 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 #ifdef LAB_NET
 [SYS_connect] sys_connect,
+[SYS_arp_show] sys_arp_show,
+[SYS_arp_add] sys_arp_add, 
+[SYS_arp_autofill] sys_arp_autofill, 
+[SYS_sim_rx] sys_sim_rx, 
+[SYS_sim_tx] sys_sim_tx, 
+[SYS_sim_rx_arp_reply] sys_sim_rx_arp_reply, 
 #endif
 #ifdef LAB_PGTBL
 [SYS_pgaccess] sys_pgaccess,

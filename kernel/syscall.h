@@ -31,3 +31,10 @@
 #define SYS_munmap    28
 #define SYS_connect   29
 #define SYS_pgaccess  30
+
+#define SYS_arp_show        31
+#define SYS_arp_add         32
+#define SYS_arp_autofill    33
+#define SYS_sim_rx          34
+#define SYS_sim_tx          35
+#define SYS_sim_rx_arp_reply 36

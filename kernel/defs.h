@@ -142,6 +142,7 @@ char*           strncpy(char*, const char*, int);
 
 // syscall.c
 int             argint(int, int*);
+uint64          argraw(int n);
 int             argstr(int, char*, int);
 int             argaddr(int, uint64 *);
 int             fetchstr(uint64, char*, int);
@@ -226,6 +227,7 @@ void            e1000_send(void);
 // net.c
 void            net_rx(struct mbuf*);
 void            net_tx_udp(struct mbuf*, uint32, uint16, uint16);
+void            mbuffree(struct mbuf *m);
 
 // sysnet.c
 void            sockinit(void);
@@ -234,4 +236,18 @@ void            sockclose(struct sock *);
 int             sockread(struct sock *, uint64, int);
 int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
+
+// arp_table.c
+void                arp_init(void);
+struct arp_entry *  arp_table_add_locked(uint32 ip, const uint8 *mac, int type);
+struct arp_entry *  arp_table_search_locked(uint32 ip);
+struct spinlock *   arp_get_lock(uint32 ip);
+struct mbuf *       detach_arp_entry_mbufs_locked(struct arp_entry *p);
+int                 attach_arp_entry_mbufs_locked(struct arp_entry *p, struct mbuf *m);
+void                send_detached_mbufs(struct mbuf *m, const uint8 *dmac);
+// for debug:
+void                debug_show_arp(void);
+uint64              sys_arp_show(void);
+uint64              sys_arp_add(void);
+uint64              sys_arp_autofill(void);
 #endif

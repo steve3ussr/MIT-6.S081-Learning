@@ -26,6 +26,12 @@ int sleep(int);
 int uptime(void);
 #ifdef LAB_NET
 int connect(uint32, uint16, uint16);
+int arp_show(void);
+int arp_add(uint32, uint64 mac);
+int arp_autofill(void);
+int sim_rx(uint32 dst_ip, uint64 dst_mac, uint32 src_ip, uint64 src_mac);
+int sim_tx(uint32 dst_ip, uint64 dst_mac);
+int sim_rx_arp_reply(uint32 dst_ip, uint64 dst_mac, uint32 src_ip, uint64 src_mac);
 #endif
 #ifdef LAB_PGTBL
 int pgaccess(void *base, int len, void *mask);
