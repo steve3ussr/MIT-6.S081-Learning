@@ -25,7 +25,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 #ifdef LAB_NET
-int connect(uint32, uint16, uint16);
+int connect(uint32, uint16, uint16, uint8);
 int arp_show(void);
 int arp_add(uint32, uint64 mac);
 int arp_autofill(void);

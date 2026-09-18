@@ -190,7 +190,8 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_tmp \
-	$U/_arp
+	$U/_arp \
+	$U/_ping
 
 
 
