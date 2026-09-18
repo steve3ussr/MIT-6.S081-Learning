@@ -11,6 +11,7 @@ struct superblock;
 #ifdef LAB_NET
 struct mbuf;
 struct sock;
+struct icmp_msg;
 #endif
 
 // bio.c
@@ -228,14 +229,16 @@ void            e1000_send(void);
 void            net_rx(struct mbuf*);
 void            net_tx_udp(struct mbuf*, uint32, uint16, uint16);
 void            mbuffree(struct mbuf *m);
+void            net_tx_icmp(struct mbuf *m, uint32 dip, struct icmp_msg *p);
 
 // sysnet.c
 void            sockinit(void);
-int             sockalloc(struct file **, uint32, uint16, uint16);
+int             sockalloc(struct file **, uint32, uint16, uint16, uint8);
 void            sockclose(struct sock *);
 int             sockread(struct sock *, uint64, int);
 int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
+void            sockrecvicmp(struct mbuf*, uint32, uint16);
 
 // arp_table.c
 void                arp_init(void);

@@ -32,6 +32,7 @@ char *mbuftrim(struct mbuf *m, unsigned int len);
 
 struct mbuf *mbufalloc(unsigned int headroom);
 void mbuffree(struct mbuf *m);
+extern uint32 local_ip;
 
 struct mbufq {
   struct mbuf *head;  // the first element in the queue
@@ -115,6 +116,27 @@ struct udp {
   uint16 sum;   // checksum
 };
 
+// an ICMP message header (comes after an IP header) for KERNEL
+struct icmp {
+  uint8 type;  // ICMP type
+  uint8 code;  // ICMP code
+  uint16 sum;  // checksum
+  uint16 id;   // TODO: identify client
+  uint16 seq;  // TODO: sequence number
+};
+
+// an ICMP message for USER
+struct icmp_msg {
+  uint8  type;         // ICMP type. For Echo Request (ping), type=8, code=0
+  uint8  code;         // ICMP code
+  uint16 id;           // identifier
+  uint16 seq;          // sequence number
+  char*  payload;      // payload string
+  uint8  payload_len;  // payload string len
+  uint32 resp_ip;
+  uint32 resp_ttl;
+};
+
 // an ARP packet (comes after an Ethernet header).
 struct arp {
   uint16 hrd; // format of hardware address
@@ -171,3 +193,14 @@ struct dns_data {
   uint32 ttl;
   uint16 len;
 } __attribute__((packed));
+
+#define ICMP_TYPE_ECHO_REPLY  0
+#define ICMP_TYPE_DST_UNREACH 3
+#define ICMP_TYPE_REDIRECT    5
+#define ICMP_TYPE_ECHO_REQ    8
+#define ICMP_TYPE_RA          9
+#define ICMP_TYPE_RS          10
+#define ICMP_TYPE_TIME_EXC    11
+#define ICMP_TYPE_BAD_PARA    12
+#define ICMP_TIMESTAMP        13
+#define ICMP_TIMESTAMP_REPLY  14

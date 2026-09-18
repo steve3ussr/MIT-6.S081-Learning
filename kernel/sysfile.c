@@ -495,14 +495,16 @@ sys_connect(void)
   uint32 raddr;
   uint32 rport;
   uint32 lport;
+  uint32 proto;
 
   if (argint(0, (int*)&raddr) < 0 ||
       argint(1, (int*)&lport) < 0 ||
-      argint(2, (int*)&rport) < 0) {
+      argint(2, (int*)&rport) < 0 || 
+      argint(3, (int*)&proto) < 0) {
     return -1;
   }
 
-  if(sockalloc(&f, raddr, lport, rport) < 0)
+  if(sockalloc(&f, raddr, lport, rport, proto) < 0)
     return -1;
   if((fd=fdalloc(f)) < 0){
     fileclose(f);

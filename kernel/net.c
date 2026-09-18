@@ -12,9 +12,10 @@
 #include "arp_table.h"
 #include "defs.h"
 
-static uint32 local_ip = MAKE_IP_ADDR(10, 0, 2, 15); // qemu's idea of the guest IP
+uint32 local_ip = MAKE_IP_ADDR(10, 0, 2, 15); // qemu's idea of the guest IP
 static uint32 local_ip_mask = MAKE_IP_ADDR(255, 255, 255, 0);
 static uint8 local_mac[ETHADDR_LEN] = { 0x52, 0x54, 0x00, 0x12, 0x34, 0x56 };
+uint8 gateway_mac[ETHADDR_LEN] = { 0x1a, 0x70, 0xfd, 0x73, 0x8e, 0xe9 };
 static uint8 broadcast_mac[ETHADDR_LEN] = { 0xFF, 0XFF, 0XFF, 0XFF, 0XFF, 0XFF };
 
 static int net_tx_arp(uint16 op, uint8 dmac[ETHADDR_LEN], uint32 dip);
@@ -232,7 +233,7 @@ net_tx_eth(struct mbuf *m, uint16 ethtype)
 
     // UNICAST, but not the same subnet
     else if ((dip & local_ip_mask) != (local_ip & local_ip_mask)) {
-      memmove(ethhdr->dhost, broadcast_mac, ETHADDR_LEN);
+      memmove(ethhdr->dhost, gateway_mac, ETHADDR_LEN);
 
       goto send;
     }
@@ -327,6 +328,20 @@ net_tx_udp(struct mbuf *m, uint32 dip,
 
   // now on to the IP layer
   net_tx_ip(m, IPPROTO_UDP, dip);
+}
+
+// sends a ICMP packet
+void
+net_tx_icmp(struct mbuf *m, uint32 dip, struct icmp_msg *msg)
+{
+  struct icmp *icmphdr = mbufpushhdr(m, *icmphdr);
+  icmphdr->type = msg->type;
+  icmphdr->code = msg->code;
+  icmphdr->id = htons(msg->id);
+  icmphdr->seq = htons(msg->seq);
+  icmphdr->sum = 0;
+  icmphdr->sum = in_cksum((unsigned char *)icmphdr, sizeof(icmphdr)+msg->payload_len);
+  net_tx_ip(m, IPPROTO_ICMP, dip);
 }
 
 // sends an ARP packet
@@ -433,6 +448,26 @@ done:
   mbuffree(m);
 }
 
+// receives an ICMP message
+static void
+net_rx_icmp(struct mbuf *m, uint16 len, struct ip *iphdr)
+{
+  struct icmp *icmphdr;
+  icmphdr = mbufpullhdr(m, *icmphdr);
+  if (!icmphdr)
+    goto fail;
+
+  // TODO: validate ICMP checksum
+
+  // minimum packet size could be larger than the payload
+  mbuftrim(m, m->len - len);
+  sockrecvicmp(m, ntohl(iphdr->ip_src), ntohs(icmphdr->id));
+  return;
+
+  fail:
+    mbuffree(m);
+}
+
 // receives a UDP packet
 static void
 net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr)
@@ -491,13 +526,21 @@ net_rx_ip(struct mbuf *m)
   // is the packet addressed to us?
   if (htonl(iphdr->ip_dst) != local_ip)
     goto fail;
-  // can only support UDP
-  if (iphdr->ip_p != IPPROTO_UDP)
-    goto fail;
 
   len = ntohs(iphdr->ip_len) - sizeof(*iphdr);
-  net_rx_udp(m, len, iphdr);
-  return;
+  // can only support several protocols
+  if (iphdr->ip_p == IPPROTO_UDP) {
+    net_rx_udp(m, len, iphdr);
+    return;
+  } else if (iphdr->ip_p == IPPROTO_ICMP) {
+    net_rx_icmp(m, len, iphdr);
+    return;
+  }
+  else {
+    goto fail;
+  }
+
+  
 
 fail:
   mbuffree(m);
