@@ -459,6 +459,24 @@ net_rx_icmp(struct mbuf *m, uint16 len, struct ip *iphdr)
 
   // TODO: validate ICMP checksum
 
+  if(icmphdr->type == ICMP_TYPE_ECHO_REQ && icmphdr->code == 0) {
+    struct mbuf *m_resp = mbufalloc(MBUF_DEFAULT_HEADROOM);
+    struct icmp_msg resp;
+
+    resp.type = ICMP_TYPE_ECHO_REPLY;
+    resp.code = 0;
+    resp.id = ntohs(icmphdr->id);
+    resp.seq = ntohs(icmphdr->seq);
+    resp.payload = m->head;
+    resp.payload_len = m->len;
+    char *payload = mbufput(m_resp, m->len);
+    memmove(payload, m->head, m->len);
+    
+    net_tx_icmp(m_resp, ntohl(iphdr->ip_src), &resp);
+    mbuffree(m);
+    return;
+  }
+
   // minimum packet size could be larger than the payload
   mbuftrim(m, m->len - len);
   sockrecvicmp(m, ntohl(iphdr->ip_src), ntohs(icmphdr->id));
