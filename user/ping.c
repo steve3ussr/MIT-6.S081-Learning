@@ -126,6 +126,10 @@ int main(int argc, char **argv){
         fprintf(2, "ping: connect() failed\n");
         exit(1);
     }
+    if(nbio(fd, 0) < 0){
+        fprintf(2, "ping: nbio() failed\n");
+        exit(1);
+    }
 
     struct icmp_msg req;
     req.type = ICMP_TYPE_ECHO_REQ;
@@ -146,29 +150,35 @@ int main(int argc, char **argv){
             exit(1);
         }
 
-        sleep(10);
 
-        memset(resp_payload, 0, 256);
-        memset(&resp, 0, sizeof(struct icmp_msg));
-        resp.payload_len = 255;
-        resp.payload = resp_payload;
-
-        
-        int cc = read(fd, &resp, sizeof(struct icmp_msg));
-        if(cc == -1){
-            fprintf(2, "ping: recv() failed\n");
-            exit(1);
+        int cc = 0;
+        uint64 deadline = uptime() + 20;  // wait 2 seconds
+        while(uptime() < deadline){
+            memset(resp_payload, 0, 256);
+            memset(&resp, 0, sizeof(struct icmp_msg));
+            resp.payload_len = 255;
+            resp.payload = resp_payload;
+            cc = read(fd, &resp, sizeof(struct icmp_msg));
+            if(cc < 0){
+                fprintf(2, "ping: recv() failed\n");
+                exit(1);
+            } else if (cc == 0) {
+                // busy waiting
+                sleep(1);
+                continue;
+            } else {
+                break;
+            }
+                
         }
-
-        else if(cc == -2){
+        if(cc == 0){
             printf("Reply from %d.%d.%d.%d: Destination host unreachable. \n", ((resp.resp_ip&0xFF000000)>>24), 
                                                                  ((resp.resp_ip&0x00FF0000)>>16), 
                                                                  ((resp.resp_ip&0x0000FF00)>> 8), 
                                                                  ((resp.resp_ip&0x000000FF)>> 0));
-            continue;
         }
 
-        if (resp.type == ICMP_TYPE_ECHO_REPLY && resp.type == 0){
+        else if (resp.type == ICMP_TYPE_ECHO_REPLY && resp.type == 0){
             // end = uptime();
             printf("Reply from %d.%d.%d.%d: bytes=%d TTL=%d \n", ((resp.resp_ip&0xFF000000)>>24), 
                                                                  ((resp.resp_ip&0x00FF0000)>>16), 
@@ -182,10 +192,10 @@ int main(int argc, char **argv){
                                                                                ((resp.resp_ip&0x00FF0000)>>16), 
                                                                                ((resp.resp_ip&0x0000FF00)>> 8), 
                                                                                ((resp.resp_ip&0x000000FF)>> 0));
-            continue;
         } else {
             printf("unknown ICMP type. \n");
         }
+        sleep(10);
     }
 
 

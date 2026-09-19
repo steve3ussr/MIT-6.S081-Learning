@@ -23,6 +23,7 @@ struct sock {
   struct mbufq rxq;  // a queue of packets waiting to be received
   uint8  protocol;   // prototype code, same as it is in IP headers, defined in net.h
   uint16 icmp_id;    // unique id for ICMP socket, connect netstack and socket
+  uint8  read_blocking;  // 1 (default): block read, 0: non-block read. init with 1, can be set by syscall nbio()
 };
 
 static struct spinlock lock;
@@ -100,6 +101,7 @@ sockalloc(struct file **f, uint32 raddr, uint16 lport, uint16 rport, uint8 proto
   si->lport = lport;
   si->rport = rport;
   si->protocol = protocol;
+  si->read_blocking = 1;
   initlock(&si->lock, "sock");
   if(protocol == IPPROTO_ICMP){
     // try to alloc icmp id
@@ -174,10 +176,13 @@ sockread(struct sock *si, uint64 addr, int n)
   int len;
 
   acquire(&si->lock);
-  uint64 deadline = ticks + 20;  // wait for max 2 seconds
-  while (mbufq_empty(&si->rxq) && !pr->killed) {
-    if(ticks >= deadline){
 
+  if(si->read_blocking == 1) {
+    while (mbufq_empty(&si->rxq) && !pr->killed) {
+      sleep(&si->rxq, &si->lock);
+    }
+  } else if (si->read_blocking == 0) {
+    if (mbufq_empty(&si->rxq) && !pr->killed) {
       if (si->protocol == IPPROTO_ICMP) {
         struct icmp_msg resp;
         resp.resp_ip = local_ip;
@@ -187,10 +192,17 @@ sockread(struct sock *si, uint64 addr, int n)
         }
       }
       release(&si->lock);
-      return -2;
+      return 0;  // if nothing to read, return 0; copyout local_ip if ICMP
     }
-    // sleep(&si->rxq, &si->lock);
+    // else continue to process mbuf
+      
+  } else {
+    release(&si->lock);
+    printf("[sockread] sock read blocking method error \n");
+    return -1;
   }
+
+
   if (pr->killed) {
     release(&si->lock);
     return -1;
@@ -369,3 +381,23 @@ sockrecvicmp(struct mbuf *m, uint32 raddr, uint16 id)
     release(&si->lock);
     release(&lock);
 }
+
+int
+sock_set_nbio(struct file *f, int n)
+{
+  if(f->readable == 0)
+    return -1;
+
+  #ifdef LAB_NET
+  if(f->type != FD_SOCK)
+    return -1;
+
+  if(0<=n && n<=1){  // 0: set to non-blocking, 1 (default): set to blocking
+    f->sock->read_blocking = n;
+    return 0;
+  }
+  #endif
+
+  return -1;
+}
+

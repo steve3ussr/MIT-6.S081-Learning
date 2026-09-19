@@ -239,6 +239,7 @@ int             sockread(struct sock *, uint64, int);
 int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
 void            sockrecvicmp(struct mbuf*, uint32, uint16);
+int             sock_set_nbio(struct file *f, int state);
 
 // arp_table.c
 void                arp_init(void);

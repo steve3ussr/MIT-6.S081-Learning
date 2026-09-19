@@ -106,6 +106,7 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
+extern uint64 sys_nbio(void);
 extern uint64 sys_arp_show(void);
 extern uint64 sys_arp_add(void);
 extern uint64 sys_arp_autofill(void);
@@ -142,6 +143,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 #ifdef LAB_NET
 [SYS_connect] sys_connect,
+[SYS_nbio]    sys_nbio, 
 [SYS_arp_show] sys_arp_show,
 [SYS_arp_add] sys_arp_add, 
 [SYS_arp_autofill] sys_arp_autofill, 

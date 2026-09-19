@@ -38,3 +38,5 @@
 #define SYS_sim_rx          34
 #define SYS_sim_tx          35
 #define SYS_sim_rx_arp_reply 36
+
+#define SYS_nbio    37

@@ -513,4 +513,15 @@ sys_connect(void)
 
   return fd;
 }
+
+int
+sys_nbio(void)
+{
+  struct file *f;
+  int n;
+
+  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0)
+    return -1;
+  return sock_set_nbio(f, n);
+}
 #endif
