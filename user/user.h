@@ -33,6 +33,8 @@ int arp_autofill(void);
 int sim_rx(uint32 dst_ip, uint64 dst_mac, uint32 src_ip, uint64 src_mac);
 int sim_tx(uint32 dst_ip, uint64 dst_mac);
 int sim_rx_arp_reply(uint32 dst_ip, uint64 dst_mac, uint32 src_ip, uint64 src_mac);
+int recvfrom(int fd, void *payload, int size, uint32 *raddr, uint16 *rport);
+int sendto(int fd, const void *payload, int size, uint32 raddr, uint16 rport);
 #endif
 #ifdef LAB_PGTBL
 int pgaccess(void *base, int len, void *mask);

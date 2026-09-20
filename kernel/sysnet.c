@@ -343,6 +343,11 @@ sockrecvudp(struct mbuf *m, uint32 raddr, uint16 lport, uint16 rport)
   while (si) {
     if (si->raddr == raddr && si->lport == lport && si->rport == rport)
       goto found;
+    // sockrecvudp(m, sip, dport, sport);
+    if (si->raddr == 0 && si->lport == lport && si->rport == 0){
+      goto found;
+    }
+      
     si = si->next;
   }
   release(&lock);
@@ -401,3 +406,103 @@ sock_set_nbio(struct file *f, int n)
   return -1;
 }
 
+int
+sock_recvfrom(struct file *f, uint64 payload, int n, uint64 p_raddr, uint64 p_rport)
+{
+  if(f->readable == 0)
+    return -1;
+  if(f->type != FD_SOCK)
+    return -1;
+
+  struct sock *si = f->sock;
+  if(si->protocol != IPPROTO_UDP && si->protocol != IPPROTO_TCP)
+    return -1;
+  
+
+  // block/non-block on mbufq
+  acquire(&si->lock);
+  struct proc *pr = myproc();  
+  if(si->read_blocking == 1) {
+    while (mbufq_empty(&si->rxq) && !pr->killed) {
+      sleep(&si->rxq, &si->lock);
+    }
+  } else if (si->read_blocking == 0) {
+    if (mbufq_empty(&si->rxq) && !pr->killed) {
+      release(&si->lock);
+      return 0;
+    }
+  } else {
+    release(&si->lock);
+    printf("[sockread] sock read blocking method error \n");
+    return -1;
+  }
+
+  // make sure pr state OK
+  if (pr->killed) {
+    release(&si->lock);
+    return -1;
+  }
+
+  // get mbuf
+  struct mbuf *m = mbufq_pophead(&si->rxq);
+  release(&si->lock);
+
+  // if mbuf payload length > user want n, trim it. 
+  int len = m->len;
+  if (len > n)
+    len = n;  
+
+  // copyout payload
+  if (copyout(pr->pagetable, payload, m->head, len) == -1) {
+    mbuffree(m);
+    return -1;
+  }
+
+  // copyout to p_raddr, p_rport
+  struct udp *udphdr = mbufpushhdr(m, *udphdr);
+  uint16 rport = ntohs(udphdr->sport);
+
+  struct ip *iphdr = mbufpushhdr(m, *iphdr);
+  uint32 raddr = ntohl(iphdr->ip_src);
+  if ((copyout(pr->pagetable, p_raddr, (char *)&raddr, sizeof(uint32)) == -1) || (copyout(pr->pagetable, p_rport, (char *)&rport, sizeof(uint16)) == -1)) {
+    mbuffree(m);
+    return -1;
+  }
+  return len;
+}
+
+int
+sock_sendto(struct file *f, uint64 payload, int n, uint32 raddr, uint16 rport)
+{
+  if(f->readable == 0)
+    return -1;
+  if(f->type != FD_SOCK)
+    return -1;
+
+  struct sock *si = f->sock;
+  if(si->protocol != IPPROTO_UDP && si->protocol != IPPROTO_TCP){
+    return -1;
+  }
+
+  struct proc *pr = myproc();
+  struct mbuf *m = mbufalloc(MBUF_DEFAULT_HEADROOM);
+  if (!m)
+    return -1;
+
+  // copy payload
+  char *mbuf_payload = mbufput(m, n);
+  if (copyin(pr->pagetable, mbuf_payload, payload, n) == -1) {
+    mbuffree(m);
+    return -1;
+  }
+
+  if (si->protocol == IPPROTO_UDP){
+    net_tx_udp(m, raddr, si->lport, rport);
+  } else {
+    mbuffree(m);
+    return -1;
+  }
+
+  
+  return 0;
+}

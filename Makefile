@@ -191,7 +191,8 @@ UPROGS=\
 	$U/_zombie\
 	$U/_tmp \
 	$U/_arp \
-	$U/_ping
+	$U/_ping \
+	$U/_udp_server
 
 
 

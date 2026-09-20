@@ -45,3 +45,5 @@ entry("sim_rx");
 entry("sim_tx");
 entry("sim_rx_arp_reply");
 entry("nbio");
+entry("recvfrom");
+entry("sendto");

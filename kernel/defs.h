@@ -240,6 +240,8 @@ int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
 void            sockrecvicmp(struct mbuf*, uint32, uint16);
 int             sock_set_nbio(struct file *f, int state);
+int             sock_recvfrom(struct file *f, uint64 payload, int n, uint64 p_raddr, uint64 p_rport);
+int             sock_sendto(struct file *f, uint64 payload, int n, uint32 raddr, uint16 rport);
 
 // arp_table.c
 void                arp_init(void);

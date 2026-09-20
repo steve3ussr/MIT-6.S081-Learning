@@ -39,4 +39,6 @@
 #define SYS_sim_tx          35
 #define SYS_sim_rx_arp_reply 36
 
-#define SYS_nbio    37
+#define SYS_nbio     37
+#define SYS_recvfrom 38
+#define SYS_sendto   39

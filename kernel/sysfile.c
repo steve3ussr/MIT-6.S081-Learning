@@ -524,4 +524,34 @@ sys_nbio(void)
     return -1;
   return sock_set_nbio(f, n);
 }
+
+// int recvfrom(int fd,       void *payload, int size, uint32 *raddr, uint16 *rport);
+int
+sys_recvfrom(void)
+{
+  struct file *f;
+  uint64 payload;
+  int n;
+  uint64 p_raddr;
+  uint64 p_rport;
+
+  if(argfd(0, 0, &f) < 0 || argaddr(1, &payload) || argint(2, &n) || argaddr(3, &p_raddr) || argaddr(4, &p_rport)< 0)
+    return -1;
+  return sock_recvfrom(f, payload, n, p_raddr, p_rport);
+}
+
+// int sendto  (int fd, const void *payload, int size, uint32  raddr, uint16  rport);
+int
+sys_sendto(void)
+{
+  struct file *f;
+  uint64 payload;
+  int n;
+  uint32 raddr;
+  uint32 rport;
+
+  if(argfd(0, 0, &f) < 0 || argaddr(1, &payload) || argint(2, &n) || argint(3, (int *)&raddr) || argint(4, (int *)&rport)< 0)
+    return -1;
+  return sock_sendto(f, payload, n, raddr, rport & 0xFFFF);
+}
 #endif

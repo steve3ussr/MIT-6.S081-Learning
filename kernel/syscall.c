@@ -106,13 +106,15 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 #ifdef LAB_NET
 extern uint64 sys_connect(void);
-extern uint64 sys_nbio(void);
 extern uint64 sys_arp_show(void);
 extern uint64 sys_arp_add(void);
 extern uint64 sys_arp_autofill(void);
 extern uint64 sys_sim_rx(void);
 extern uint64 sys_sim_tx(void);
 extern uint64 sys_sim_rx_arp_reply(void);
+extern uint64 sys_nbio(void);
+extern uint64 sys_recvfrom(void);
+extern uint64 sys_sendto(void);
 
 #endif
 #ifdef LAB_PGTBL
@@ -143,13 +145,15 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 #ifdef LAB_NET
 [SYS_connect] sys_connect,
-[SYS_nbio]    sys_nbio, 
 [SYS_arp_show] sys_arp_show,
 [SYS_arp_add] sys_arp_add, 
 [SYS_arp_autofill] sys_arp_autofill, 
 [SYS_sim_rx] sys_sim_rx, 
 [SYS_sim_tx] sys_sim_tx, 
 [SYS_sim_rx_arp_reply] sys_sim_rx_arp_reply, 
+[SYS_nbio]     sys_nbio, 
+[SYS_recvfrom] sys_recvfrom,
+[SYS_sendto]   sys_sendto, 
 #endif
 #ifdef LAB_PGTBL
 [SYS_pgaccess] sys_pgaccess,
