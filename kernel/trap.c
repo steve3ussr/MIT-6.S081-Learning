@@ -168,6 +168,9 @@ clockintr()
   acquire(&tickslock);
   ticks++;
   wakeup(&ticks);
+
+  // sock_retransmit();
+
   release(&tickslock);
 }
 

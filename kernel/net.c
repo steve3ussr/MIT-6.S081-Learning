@@ -312,6 +312,36 @@ net_tx_ip(struct mbuf *m, uint8 proto, uint32 dip)
   net_tx_eth(m, ETHTYPE_IP);
 }
 
+// sends a TCP packet
+void
+net_tx_tcp(struct mbuf *m, uint32 dip,
+           uint16 sport, uint16 dport, 
+           uint16 rwnd, uint8 flags)
+{
+  struct tcp *tcphdr = mbufpushhdr(m, *tcphdr);
+  struct pseudo_ip *iphdr = mbufpushhdr(m, *iphdr);
+  
+
+  iphdr->ip_src = htonl(local_ip);
+  iphdr->ip_dst = htonl(dip);
+  iphdr->reserved = 0;
+  iphdr->ip_p = IPPROTO_TCP;
+  iphdr->ip_payload_len = htons(20 + m->tcp_payload);
+
+  tcphdr->sport = htons(sport);
+  tcphdr->dport = htons(dport);
+  tcphdr->seq = htonl(m->tcp_seq);
+  tcphdr->ack = htonl(m->tcp_ack);
+  tcphdr->doff_flags = htons(0x5000) | htons(flags);  // 0x5000: header len
+  tcphdr->window = htons(rwnd);
+  tcphdr->checksum = 0;
+  tcphdr->urg_ptr = 0;
+  tcphdr->checksum = in_cksum((unsigned char *)iphdr, sizeof(struct pseudo_ip)+sizeof(struct tcp)+m->tcp_payload);
+  
+  mbufpullhdr(m, *iphdr);
+  net_tx_ip(m, IPPROTO_TCP, dip);
+}
+
 // sends a UDP packet
 void
 net_tx_udp(struct mbuf *m, uint32 dip,
@@ -521,6 +551,48 @@ fail:
   mbuffree(m);
 }
 
+static void
+net_rx_tcp(struct mbuf *m, uint16 len, struct ip *iphdr)
+{
+  struct tcp *tcphdr;
+  uint32 sip;
+  uint16 sport, dport;
+
+  
+  tcphdr = mbufpullhdr(m, *tcphdr);
+  if (!tcphdr)
+    goto fail;
+  // NOW: m->len = TCP Header + Payload + Padding - 20; 
+  //      len    = TCP Header + Payload reported by IP
+  
+  // TODO: validate TCP checksum
+
+  // remove padding
+  len -= sizeof(*tcphdr);
+  mbuftrim(m, m->len - len);
+
+  // remove option headers
+  int tcphdr_len = GET_TCP_HDRLEN(tcphdr);
+  if(tcphdr_len > 20){
+    m->len -= (tcphdr_len - 20);
+    m->head += (tcphdr_len - 20);
+  } else if(tcphdr_len < 20){
+    goto fail;
+  }
+
+  // parse the necessary fields
+  sip = ntohl(iphdr->ip_src);
+  sport = ntohs(tcphdr->sport);
+  dport = ntohs(tcphdr->dport);
+  printf("[net_rx_tcp] get a TCP packet, checksum=%p\n", ntohs(tcphdr->checksum));
+  sockrecvtcp(m, sip, dport, sport, tcphdr);
+  return;
+
+  fail:
+    mbuffree(m);
+    printf("[net_rx_tcp][mbuffree] %p\n", m);
+}
+
 // receives an IP packet
 static void
 net_rx_ip(struct mbuf *m)
@@ -552,6 +624,9 @@ net_rx_ip(struct mbuf *m)
     return;
   } else if (iphdr->ip_p == IPPROTO_ICMP) {
     net_rx_icmp(m, len, iphdr);
+    return;
+  } else if (iphdr->ip_p == IPPROTO_TCP) {
+    net_rx_tcp(m, len, iphdr);
     return;
   }
   else {

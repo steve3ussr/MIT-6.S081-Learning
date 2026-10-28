@@ -5,11 +5,19 @@
 #define MBUF_SIZE              2048
 #define MBUF_DEFAULT_HEADROOM  128
 
+#define MBUFQ_TCP_TX_LIMIT_MAX 64000  // limit sum(TCP payload bytes) in mbufq, not mbuf counts
+
 struct mbuf {
   struct mbuf  *next; // the next mbuf in the chain
   char         *head; // the current start position of the buffer
   unsigned int len;   // the length of the buffer
   char         buf[MBUF_SIZE]; // the backing store
+  uint16       tcp_payload;   // the length of tcp payload
+  uint8        tcp_seq_nxt;   // =tcp_seq if this packet take 0 seq; >tcp_seq for SYN/FIN/payload
+  uint32       tcp_seq;
+  uint32       tcp_ack;
+  uint16       tcp_flags;     // override tcp flags
+  struct sock *tcp_socket;
 };
 
 char *mbufpull(struct mbuf *m, unsigned int len);
@@ -37,6 +45,10 @@ extern uint32 local_ip;
 struct mbufq {
   struct mbuf *head;  // the first element in the queue
   struct mbuf *tail;  // the last element in the queue
+  uint32       len;   // current TCP payload size in total (Include: In-flight data(sent, not ack) + Pending data(not sent))
+  uint16       cwnd;  // current window
+  uint16       rwnd;  // remote window
+  uint32       limit; // queue bytes limitation, len <= limit
 };
 
 void mbufq_pushtail(struct mbufq *q, struct mbuf *m);
@@ -98,6 +110,14 @@ struct ip {
   uint8  ip_p;   // protocol
   uint16 ip_sum; // checksum
   uint32 ip_src, ip_dst;
+};
+
+struct pseudo_ip {
+  uint32 ip_src;
+  uint32 ip_dst;
+  uint8  reserved;
+  uint8  ip_p;
+  uint16 ip_payload_len;
 };
 
 #define IPPROTO_ICMP 1  // Control message protocol
@@ -204,3 +224,49 @@ struct dns_data {
 #define ICMP_TYPE_BAD_PARA    12
 #define ICMP_TIMESTAMP        13
 #define ICMP_TIMESTAMP_REPLY  14
+
+struct tcp {
+  uint16 sport;
+  uint16 dport;
+  uint32 seq;
+  uint32 ack;
+  uint16 doff_flags;
+  uint16 window;
+  uint16 checksum;
+  uint16 urg_ptr;
+};
+
+#define GET_TCP_FLG(tcphdr)        (ntohs(tcphdr->doff_flags))
+#define GET_TCP_HDRLEN(tcphdr)     (((ntohs(tcphdr->doff_flags) & 0xF000) >> 12) << 2)
+
+#define TCP_CWR (1<<7)
+#define TCP_ECE (1<<6)
+#define TCP_URG (1<<5)
+#define TCP_ACK (1<<4)
+#define TCP_PSH (1<<3)
+#define TCP_RST (1<<2)
+#define TCP_SYN (1<<1)
+#define TCP_FIN (1<<0)
+
+// TCP Status
+#define TCP_STA_CLOSED      0
+#define TCP_STA_SYN_SENT    1
+#define TCP_STA_EST         2
+#define TCP_STA_FIN_WAIT1   3
+#define TCP_STA_FIN_WAIT2   4
+#define TCP_STA_TIME_WAIT   5
+
+// TCP Events
+#define TCP_EVT_USER_OPEN   (1<< 12)
+#define TCP_EVT_USER_SEND   (1<< 11)
+#define TCP_EVT_USER_CLOSE  (1<< 10)
+
+#define TCP_EVT_RX_DATA     (1<<8)
+
+#define TCP_EVT_RX_ACK      (1<<4)
+#define TCP_EVT_RX_PSH      (1<<3)
+#define TCP_EVT_RX_RST      (1<<2)
+#define TCP_EVT_RX_SYN      (1<<1)
+#define TCP_EVT_RX_FIN      (1<<0)
+
+#define TCP_EVT_RETX_TIMEOUT (1<<20)

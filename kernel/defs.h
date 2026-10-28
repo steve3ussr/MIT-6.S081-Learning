@@ -12,6 +12,7 @@ struct superblock;
 struct mbuf;
 struct sock;
 struct icmp_msg;
+struct tcp;
 #endif
 
 // bio.c
@@ -85,6 +86,8 @@ int             pipewrite(struct pipe*, uint64, int);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
+void            backtrace(void);
+void            backtrace_print(uint64 addr);
 
 // proc.c
 int             cpuid(void);
@@ -230,6 +233,9 @@ void            net_rx(struct mbuf*);
 void            net_tx_udp(struct mbuf*, uint32, uint16, uint16);
 void            mbuffree(struct mbuf *m);
 void            net_tx_icmp(struct mbuf *m, uint32 dip, struct icmp_msg *p);
+void            net_tx_tcp(struct mbuf *m, uint32 dip, 
+                           uint16 sport, uint16 dport, 
+                           uint16 rwnd, uint8 flags);
 
 // sysnet.c
 void            sockinit(void);
@@ -239,9 +245,12 @@ int             sockread(struct sock *, uint64, int);
 int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
 void            sockrecvicmp(struct mbuf*, uint32, uint16);
+void            sockrecvtcp(struct mbuf *m, uint32 raddr, uint16 lport, uint16 rport, struct tcp *tcphdr);
 int             sock_set_nbio(struct file *f, int state);
 int             sock_recvfrom(struct file *f, uint64 payload, int n, uint64 p_raddr, uint64 p_rport);
 int             sock_sendto(struct file *f, uint64 payload, int n, uint32 raddr, uint16 rport);
+void            sock_retransmit(void);
+int             tcp_sock2net(struct mbuf *m, int event, uint8 flags);
 
 // arp_table.c
 void                arp_init(void);
